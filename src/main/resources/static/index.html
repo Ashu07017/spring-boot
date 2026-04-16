@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RBAC System — Access Control Panel</title>
+
+  <!-- Google Fonts: Sora (UI) + JetBrains Mono (code/terminal) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* =========================================================
+       DESIGN TOKENS — change these to retheme the entire app
+    ========================================================= */
+    :root {
+      --bg-base:        #070c14;
+      --bg-surface:     #0d1424;
+      --bg-card:        #111b2e;
+      --bg-input:       #0a1020;
+      --border:         rgba(56, 189, 248, 0.12);
+      --border-hover:   rgba(56, 189, 248, 0.35);
+      --accent:         #38bdf8;       /* sky blue — primary accent       */
+      --accent-glow:    rgba(56, 189, 248, 0.15);
+      --success:        #10b981;       /* emerald — authorized / OK       */
+      --success-bg:     rgba(16, 185, 129, 0.10);
+      --danger:         #f43f5e;       /* rose — forbidden / error        */
+      --danger-bg:      rgba(244, 63, 94, 0.10);
+      --warning:        #f59e0b;       /* amber — partial / warning       */
+      --warning-bg:     rgba(245, 158, 11, 0.10);
+      --text-primary:   #e2e8f0;
+      --text-secondary: #64748b;
+      --text-muted:     #334155;
+      --font-ui:        'Sora', sans-serif;
+      --font-mono:      'JetBrains Mono', monospace;
+      --radius-sm:      6px;
+      --radius-md:      10px;
+      --radius-lg:      16px;
+      --transition:     0.2s ease;
+    }
+
+    /* =========================================================
+       RESET & BASE
+    ========================================================= */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-ui);
+      background: var(--bg-base);
+      color: var(--text-primary);
+      min-height: 100vh;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* Subtle grid-dot background pattern */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(56,189,248,0.06) 1px, transparent 0);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* =========================================================
+       LAYOUT HELPERS
+    ========================================================= */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* PAGE: visible / hidden */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* =========================================================
+       ─── LOGIN PAGE ───
+    ========================================================= */
+    #login-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 48px 44px;
+      width: 100%;
+      max-width: 420px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Top accent bar */
+    .login-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 32px; right: 32px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      border-radius: 0 0 4px 4px;
+    }
+
+    .login-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    /* Shield icon (SVG inline) */
+    .shield-icon {
+      width: 40px;
+      height: 40px;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .login-logo h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+
+    .login-logo span {
+      display: block;
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 400;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+    }
+
+    /* Auth mode toggle (Basic Auth vs JWT) */
+    .auth-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      background: var(--bg-input);
+      border-radius: var(--radius-sm);
+      padding: 4px;
+    }
+
+    .auth-toggle button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .auth-toggle button.active {
+      background: var(--bg-card);
+      color: var(--accent);
+      border: 1px solid var(--border-hover);
+    }
+
+    /* Form fields */
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 14px;
+      transition: var(--transition);
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .field input::placeholder { color: var(--text-muted); }
+
+    /* Hint text under fields */
+    .hint {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      font-family: var(--font-mono);
+    }
+
+    /* Primary button */
+    .btn-primary {
+      width: 100%;
+      padding: 13px;
+      background: var(--accent);
+      color: #070c14;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-top: 8px;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* Alert messages */
+    .alert {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      margin-top: 16px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+    }
+
+    .alert.show { display: flex; }
+    .alert.success { background: var(--success-bg); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
+    .alert.error   { background: var(--danger-bg);  color: var(--danger);  border: 1px solid rgba(244,63,94,0.2); }
+
+    /* =========================================================
+       ─── DASHBOARD PAGE ───
+    ========================================================= */
+    #dashboard-page { padding: 0; }
+
+    /* Top navigation bar */
+    .navbar {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .navbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .navbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .navbar-brand svg { color: var(--accent); }
+
+    /* User info section */
+    .navbar-user {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .user-info {
+      text-align: right;
+    }
+
+    .user-info .name {
+      font-size: 14px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+    }
+
+    /* ─── ROLE BADGE ─── */
+    .role-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* ADMIN badge — golden/amber, stands out */
+    .role-badge.admin {
+      background: rgba(245,158,11,0.15);
+      color: var(--warning);
+      border: 1px solid rgba(245,158,11,0.3);
+    }
+
+    /* USER badge — cyan */
+    .role-badge.user {
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(56,189,248,0.3);
+    }
+
+    /* Logout button */
+    .btn-logout {
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .btn-logout:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: var(--danger-bg);
+    }
+
+    /* Dashboard main content */
+    .dashboard-main {
+      padding: 32px 0 60px;
+    }
+
+    /* Welcome banner */
+    .welcome-banner {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--accent-glow);
+      border: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+    }
+
+    .welcome-text h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .welcome-text p {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* Access level indicator */
+    .access-indicator {
+      margin-left: auto;
+      text-align: right;
+    }
+
+    .access-indicator .label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    /* ─── ACCESS LEVEL METER ─── */
+    .access-level {
+      display: flex;
+      gap: 4px;
+    }
+
+    .access-dot {
+      width: 20px;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--bg-input);
+    }
+
+    /* USER: 1 active dot; ADMIN: 3 active dots */
+    .access-dot.active-user  { background: var(--accent); }
+    .access-dot.active-admin { background: var(--warning); }
+
+    /* ─── SECTION HEADER ─── */
+    .section-title {
+      font-size: 12px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ─── API ENDPOINT CARDS ─── */
+    .endpoint-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .endpoint-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Left accent stripe */
+    .endpoint-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 3px;
+      border-radius: 0;
+    }
+
+    /* Color-coded by access level */
+    .endpoint-card.public::before  { background: var(--success); }
+    .endpoint-card.user::before    { background: var(--accent); }
+    .endpoint-card.admin::before   { background: var(--warning); }
+
+    .endpoint-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    /* Card header row */
+    .endpoint-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .endpoint-method {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--success);
+      background: var(--success-bg);
+      padding: 3px 8px;
+      border-radius: 4px;
+    }
+
+    /* Access level tags per card */
+    .access-tag {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .access-tag.all    { background: rgba(16,185,129,0.12); color: var(--success); }
+    .access-tag.auth   { background: var(--accent-glow);    color: var(--accent); }
+    .access-tag.admin  { background: var(--warning-bg);     color: var(--warning); }
+
+    .endpoint-path {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .endpoint-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+
+    /* Call API button per card */
+    .btn-call {
+      width: 100%;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      cursor: pointer;
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-call:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    /* Loading spinner */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── RESPONSE VIEWER ─── */
+    .response-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .response-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+    }
+
+    .response-title {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .response-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Status badge (200 OK / 401 / 403) */
+    .status-badge {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-weight: 500;
+      display: none;
+    }
+
+    .status-badge.show { display: inline-block; }
+    .status-badge.ok      { background: var(--success-bg); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
+    .status-badge.warn    { background: var(--warning-bg); color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
+    .status-badge.err     { background: var(--danger-bg);  color: var(--danger);  border: 1px solid rgba(244,63,94,0.2); }
+
+    /* Response body */
+    .response-body {
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+      min-height: 80px;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Nicely styled JSON */
+    .response-body .json-key    { color: var(--accent); }
+    .response-body .json-string { color: var(--success); }
+    .response-body .json-number { color: var(--warning); }
+    .response-body .json-bool   { color: var(--danger); }
+
+    /* Empty / loading state text */
+    .placeholder-text {
+      color: var(--text-muted);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ─── ACCESS MATRIX (visual legend) ─── */
+    .access-matrix {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-top: 28px;
+    }
+
+    .matrix-header {
+      padding: 16px 20px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .matrix-table th {
+      padding: 12px 16px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .matrix-table td {
+      padding: 12px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .matrix-table tr:last-child td { border-bottom: none; }
+
+    .matrix-table td:first-child {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Tick / cross icons */
+    .perm-yes, .perm-no {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      padding: 4px 10px;
+      border-radius: 4px;
+    }
+
+    .perm-yes { color: var(--success); background: var(--success-bg); }
+    .perm-no  { color: var(--danger);  background: var(--danger-bg);  }
+
+    /* =========================================================
+       LOADING OVERLAY (shown while calling API)
+    ========================================================= */
+    .loading-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(7,12,20,0.7);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loading-overlay.show { display: flex; }
+
+    .loading-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 28px 36px;
+      text-align: center;
+    }
+
+    .loading-box .big-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto 16px;
+    }
+
+    /* =========================================================
+       RESPONSIVE — mobile-first tweaks
+    ========================================================= */
+    @media (max-width: 600px) {
+      .login-card { padding: 32px 24px; }
+      .welcome-banner { flex-wrap: wrap; }
+      .access-indicator { margin-left: 0; }
+      .navbar-user .user-info .name { display: none; }
+      .endpoint-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 1: LOGIN
+═══════════════════════════════════════════════════════════ -->
+<div id="login-page" class="page active">
+  <div class="login-card">
+
+    <!-- Logo + title -->
+    <div class="login-logo">
+      <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6L12 2z"/>
+        <path d="M9 12l2 2 4-4" stroke-width="1.5"/>
+      </svg>
+      <div>
+        <h1>Access Control</h1>
+        <span>RBAC System v1.0</span>
+      </div>
+    </div>
+
+    <!-- Auth mode toggle: Basic Auth or JWT Token -->
+    <div class="auth-toggle">
+      <button id="toggle-basic" class="active" onclick="setAuthMode('basic')">
+        Basic Auth
+      </button>
+      <button id="toggle-jwt" onclick="setAuthMode('jwt')">
+        JWT Token
+      </button>
+    </div>
+
+    <!-- Username field -->
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="username" placeholder="e.g. john_doe" autocomplete="username" />
+    </div>
+
+    <!-- Password field (Basic Auth) -->
+    <div id="password-group" class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+
+    <!-- JWT Token field (shown in JWT mode) -->
+    <div id="token-group" class="field" style="display:none;">
+      <label>JWT Bearer Token</label>
+      <input type="text" id="jwt-token" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+      <p class="hint">Paste the token from your /api/auth/login response</p>
+    </div>
+
+    <!-- Role selector (helps the UI display the right badge — real role comes from backend) -->
+    <div class="field">
+      <label>Expected Role (for UI preview)</label>
+      <select id="role-select"
+        style="width:100%;padding:12px 14px;background:var(--bg-input);border:1px solid var(--border);
+               border-radius:var(--radius-sm);color:var(--text-primary);font-family:var(--font-mono);
+               font-size:14px;outline:none;cursor:pointer;">
+        <option value="USER">USER</option>
+        <option value="ADMIN">ADMIN</option>
+      </select>
+      <p class="hint">This sets your role badge. Your actual API access depends on the backend.</p>
+    </div>
+
+    <!-- Login button -->
+    <button class="btn-primary" id="login-btn" onclick="handleLogin()">
+      Authenticate →
+    </button>
+
+    <!-- Status alerts -->
+    <div class="alert success" id="login-success">
+      <span>✓</span> <span id="login-success-msg">Login successful! Redirecting…</span>
+    </div>
+    <div class="alert error" id="login-error">
+      <span>✕</span> <span id="login-error-msg">Authentication failed. Check credentials.</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     PAGE 2: DASHBOARD
+═══════════════════════════════════════════════════════════ -->
+<div id="dashboard-page" class="page">
+
+  <!-- ── Navbar ── -->
+  <nav class="navbar">
+    <div class="container navbar-inner">
+
+      <div class="navbar-brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L4 6v6c0 5.25 3.5 10.15 8 11.35C16.5 22.15 20 17.25 20 12V6L12 2z"/>
+          <path d="M9 12l2 2 4-4"/>
+        </svg>
+        Access Control Panel
+      </div>
+
+      <div class="navbar-user">
+        <div class="user-info">
+          <div class="name" id="nav-username">—</div>
+          <div id="nav-role-badge"></div>
+        </div>
+        <button class="btn-logout" onclick="handleLogout()">Logout</button>
+      </div>
+
+    </div>
+  </nav>
+
+  <!-- ── Main content ── -->
+  <div class="dashboard-main">
+    <div class="container">
+
+      <!-- Welcome banner -->
+      <div class="welcome-banner">
+        <div class="avatar" id="user-avatar">?</div>
+        <div class="welcome-text">
+          <h2>Welcome back, <span id="welcome-username">User</span></h2>
+          <p>You are authenticated. Test your API access below.</p>
+        </div>
+        <div class="access-indicator">
+          <div class="label">Access Level</div>
+          <div class="access-level" id="access-dots">
+            <!-- Dots filled by JS based on role -->
+            <div class="access-dot"></div>
+            <div class="access-dot"></div>
+            <div class="access-dot"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── API Endpoints Section ── -->
+      <div class="section-title">API Endpoints</div>
+      <div class="endpoint-grid">
+
+        <!-- 1. Public endpoint — everyone can access -->
+        <div class="endpoint-card public">
+          <div class="endpoint-header">
+            <span class="endpoint-method">GET</span>
+            <span class="access-tag all">ALL USERS</span>
+          </div>
+          <div class="endpoint-path">/api/public/hello</div>
+          <div class="endpoint-desc">No auth required. Anyone can call this endpoint.</div>
+          <button class="btn-call" onclick="callApi('/api/public/hello', 'public-btn')" id="public-btn">
+            <span class="spinner" id="public-spinner"></span>
+            <span>▶ Send Request</span>
+          </button>
+        </div>
+
+        <!-- 2. User endpoint — requires authentication -->
+        <div class="endpoint-card user">
+          <div class="endpoint-header">
+            <span class="endpoint-method">GET</span>
+            <span class="access-tag auth">AUTH REQUIRED</span>
+          </div>
+          <div class="endpoint-path">/api/user/profile</div>
+          <div class="endpoint-desc">Requires login. Accessible by both USER and ADMIN roles.</div>
+          <button class="btn-call" onclick="callApi('/api/user/profile', 'user-btn')" id="user-btn">
+            <span class="spinner" id="user-spinner"></span>
+            <span>▶ Send Request</span>
+          </button>
+        </div>
+
+        <!-- 3. Admin endpoint — ADMIN role only -->
+        <div class="endpoint-card admin">
+          <div class="endpoint-header">
+            <span class="endpoint-method">GET</span>
+            <span class="access-tag admin">ADMIN ONLY</span>
+          </div>
+          <div class="endpoint-path">/api/admin/dashboard</div>
+          <div class="endpoint-desc">Restricted. Only ADMIN role can access this endpoint.</div>
+          <button class="btn-call" onclick="callApi('/api/admin/dashboard', 'admin-btn')" id="admin-btn">
+            <span class="spinner" id="admin-spinner"></span>
+            <span>▶ Send Request</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ── Response Viewer ── -->
+      <div class="section-title">Response Viewer</div>
+      <div class="response-panel">
+        <div class="response-header">
+          <span class="response-title">
+            <span id="response-endpoint">No request sent yet</span>
+          </span>
+          <div class="response-status">
+            <span class="status-badge" id="status-badge">200 OK</span>
+          </div>
+        </div>
+        <div class="response-body" id="response-body">
+          <span class="placeholder-text">
+            ◌ Click a Send Request button above to see the response here
+          </span>
+        </div>
+      </div>
+
+      <!-- ── Access Matrix Table ── -->
+      <div class="access-matrix">
+        <div class="matrix-header">
+          🛡 RBAC Access Matrix — Who Can Access What
+        </div>
+        <table class="matrix-table">
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Guest (no auth)</th>
+              <th>USER Role</th>
+              <th>ADMIN Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>/api/public/hello</td>
+              <td><span class="perm-yes">✓ Allowed</span></td>
+              <td><span class="perm-yes">✓ Allowed</span></td>
+              <td><span class="perm-yes">✓ Allowed</span></td>
+            </tr>
+            <tr>
+              <td>/api/user/profile</td>
+              <td><span class="perm-no">✕ 401 Unauthorized</span></td>
+              <td><span class="perm-yes">✓ Allowed</span></td>
+              <td><span class="perm-yes">✓ Allowed</span></td>
+            </tr>
+            <tr>
+              <td>/api/admin/dashboard</td>
+              <td><span class="perm-no">✕ 401 Unauthorized</span></td>
+              <td><span class="perm-no">✕ 403 Forbidden</span></td>
+              <td><span class="perm-yes">✓ Allowed</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div><!-- /container -->
+  </div><!-- /dashboard-main -->
+</div><!-- /dashboard-page -->
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="loading-box">
+    <div class="big-spinner"></div>
+    <p style="font-family:var(--font-mono);font-size:13px;color:var(--text-secondary);">
+      Calling API…
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT — All logic lives here
+═══════════════════════════════════════════════════════════ -->
+<script>
+  /* ─── CONFIG ───────────────────────────────────────────── */
+  const BASE_URL = ''; // ← Change this if your backend runs elsewhere
+
+  /* ─── AUTH MODE: 'basic' or 'jwt' ─────────────────────── */
+  let authMode = 'basic';
+
+  function setAuthMode(mode) {
+    authMode = mode;
+    // Toggle button styles
+    document.getElementById('toggle-basic').classList.toggle('active', mode === 'basic');
+    document.getElementById('toggle-jwt').classList.toggle('active', mode === 'jwt');
+    // Show/hide fields
+    document.getElementById('password-group').style.display = mode === 'basic' ? 'block' : 'none';
+    document.getElementById('token-group').style.display    = mode === 'jwt'   ? 'block' : 'none';
+  }
+
+  /* ─── BUILD AUTH HEADERS ────────────────────────────────
+     Returns the correct Authorization header depending on mode.
+     Supports Basic Auth (base64 encoded) and JWT Bearer token.
+  ─────────────────────────────────────────────────────── */
+  function getAuthHeaders() {
+    const storedMode = localStorage.getItem('authMode');
+
+    if (storedMode === 'jwt') {
+      // JWT Bearer token
+      const token = localStorage.getItem('jwtToken');
+      return token ? { 'Authorization': 'Bearer ' + token } : {};
+    } else {
+      // Basic Auth: encode "username:password" in Base64
+      const creds = localStorage.getItem('basicCreds');
+      return creds ? { 'Authorization': 'Basic ' + creds } : {};
+    }
+  }
+
+  /* ─── LOGIN HANDLER ─────────────────────────────────────
+     Sends a GET to /api/user/profile to validate credentials.
+     If the server returns 200 → success; 401 → wrong credentials.
+     For JWT mode, we attempt POST /api/auth/login first.
+  ─────────────────────────────────────────────────────── */
+  async function handleLogin() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const jwtToken = document.getElementById('jwt-token').value.trim();
+    const role     = document.getElementById('role-select').value;
+
+    // Clear previous alerts
+    showAlert('login-success', false);
+    showAlert('login-error', false);
+
+    // Validation
+    if (!username) { showLoginError('Please enter your username.'); return; }
+
+    const btn = document.getElementById('login-btn');
+    btn.disabled = true;
+    btn.textContent = 'Authenticating…';
+
+    try {
+      let authSuccess = false;
+
+      if (authMode === 'jwt') {
+        /* ── JWT Mode ──────────────────────────────────────
+           Option A: User already has a token → skip /login call.
+           Option B: Try POST /api/auth/login (common Spring Boot pattern).
+           We try Option B first; if endpoint doesn't exist, accept Option A.
+        */
+        if (!jwtToken) {
+          showLoginError('Please provide a JWT token or log in via API first.');
+          return;
+        }
+
+        // Try to validate token by calling a protected endpoint
+        const res = await fetch(BASE_URL + '/api/user/profile', {
+          headers: { 'Authorization': 'Bearer ' + jwtToken },
+          credentials: 'omit'
+        });
+
+        // 200 or 403 both mean the token is valid (403 = valid token, wrong role)
+        authSuccess = res.status === 200 || res.status === 403;
+
+        if (authSuccess) {
+          localStorage.setItem('jwtToken', jwtToken);
+          localStorage.setItem('authMode', 'jwt');
+        }
+
+      } else {
+        /* ── Basic Auth Mode ───────────────────────────────
+           Encode credentials and try a protected endpoint.
+        */
+        if (!password) { showLoginError('Please enter your password.'); return; }
+
+        // btoa() encodes to Base64 → "username:password" format
+        const encoded = btoa(username + ':' + password);
+        const res = await fetch(BASE_URL + '/api/user/profile', {
+          headers: { 'Authorization': 'Basic ' + encoded },
+          credentials: 'omit'
+        });
+
+        authSuccess = res.status === 200 || res.status === 403;
+
+        if (authSuccess) {
+          localStorage.setItem('basicCreds', encoded);
+          localStorage.setItem('authMode', 'basic');
+        }
+      }
+
+      if (authSuccess) {
+        // Save session info
+        localStorage.setItem('username', username);
+        localStorage.setItem('role', role);
+
+        // Show success message briefly, then go to dashboard
+        document.getElementById('login-success-msg').textContent = 'Welcome, ' + username + '! Redirecting…';
+        showAlert('login-success', true);
+        setTimeout(goToDashboard, 900);
+      } else {
+        showLoginError('Invalid credentials. Server returned 401 Unauthorized.');
+      }
+
+    } catch (err) {
+      /* Network error = backend is not running */
+      showLoginError('Cannot reach backend at ' + BASE_URL + '. Is Spring Boot running?');
+      console.error('Login error:', err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Authenticate →';
+    }
+  }
+
+  /* ─── NAVIGATE TO DASHBOARD ─────────────────────────────*/
+  function goToDashboard() {
+    const username = localStorage.getItem('username') || 'User';
+    const role     = localStorage.getItem('role') || 'USER';
+
+    // Update navbar
+    document.getElementById('nav-username').textContent = username;
+    document.getElementById('welcome-username').textContent = username;
+
+    // Avatar = first letter of username
+    document.getElementById('user-avatar').textContent = username.charAt(0).toUpperCase();
+
+    // Role badge
+    const badgeEl = document.getElementById('nav-role-badge');
+    badgeEl.innerHTML = `<span class="role-badge ${role.toLowerCase()}">${role}</span>`;
+
+    // Access level dots (USER = 1 dot, ADMIN = 3 dots)
+    updateAccessDots(role);
+
+    // Show dashboard, hide login
+    document.getElementById('login-page').classList.remove('active');
+    document.getElementById('dashboard-page').classList.add('active');
+  }
+
+  /* ─── ACCESS DOTS (visual indicator) ───────────────────
+     Fills colored dots based on role level.
+  ─────────────────────────────────────────────────────── */
+  function updateAccessDots(role) {
+    const dots = document.querySelectorAll('.access-dot');
+    const isAdmin = role === 'ADMIN';
+    const cls = isAdmin ? 'active-admin' : 'active-user';
+
+    dots.forEach((dot, i) => {
+      dot.className = 'access-dot'; // reset
+      // USER: only dot 0 lit; ADMIN: all 3 dots lit
+      if (i === 0 || (isAdmin && i <= 2)) {
+        dot.classList.add(cls);
+      }
+    });
+  }
+
+  /* ─── LOGOUT HANDLER ────────────────────────────────────*/
+  function handleLogout() {
+    // Clear all stored credentials and session
+    localStorage.removeItem('username');
+    localStorage.removeItem('role');
+    localStorage.removeItem('basicCreds');
+    localStorage.removeItem('jwtToken');
+    localStorage.removeItem('authMode');
+
+    // Reset response viewer
+    resetResponseViewer();
+
+    // Go back to login
+    document.getElementById('dashboard-page').classList.remove('active');
+    document.getElementById('login-page').classList.add('active');
+  }
+
+  /* ─── CALL API ──────────────────────────────────────────
+     Makes a GET request to the given endpoint with auth headers.
+     Handles 200, 401, 403, and network errors.
+  ─────────────────────────────────────────────────────── */
+  async function callApi(endpoint, btnId) {
+    const fullUrl = BASE_URL + endpoint;
+    const spinner = document.getElementById(btnId.replace('-btn', '-spinner'));
+
+    // Show loading state
+    spinner.style.display = 'block';
+    document.getElementById('response-endpoint').textContent = 'GET ' + endpoint;
+    resetResponseViewer();
+
+    try {
+      const res = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()   // Spread in auth headers (Basic or Bearer)
+        }
+      });
+
+      const statusCode = res.status;
+
+      // Try to parse response as JSON; fall back to raw text
+      let body;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        body = await res.json();
+      } else {
+        body = await res.text();
+      }
+
+      // Render the response
+      displayResponse(statusCode, body, endpoint);
+
+    } catch (err) {
+      /* CORS error or backend not running */
+      displayNetworkError(endpoint, err);
+    } finally {
+      spinner.style.display = 'none';
+    }
+  }
+
+  /* ─── DISPLAY RESPONSE ──────────────────────────────────*/
+  function displayResponse(statusCode, body, endpoint) {
+    const badge = document.getElementById('status-badge');
+    const bodyEl = document.getElementById('response-body');
+
+    badge.classList.add('show');
+
+    if (statusCode === 200) {
+      /* ✅ SUCCESS */
+      badge.className = 'status-badge show ok';
+      badge.textContent = '200 OK';
+
+      const formatted = typeof body === 'object'
+        ? syntaxHighlight(JSON.stringify(body, null, 2))
+        : escapeHtml(body);
+
+      bodyEl.innerHTML = `<span style="color:var(--success)">✓ Access Granted</span>\n\n${formatted}`;
+
+    } else if (statusCode === 401) {
+      /* 🔐 UNAUTHORIZED */
+      badge.className = 'status-badge show err';
+      badge.textContent = '401 Unauthorized';
+
+      bodyEl.innerHTML =
+        `<span style="color:var(--danger)">✕ 401 Unauthorized — Login Required</span>\n\n` +
+        `<span style="color:var(--text-secondary)">You must be logged in to access:\n  ${endpoint}\n\n` +
+        `Check your credentials or token and try again.</span>`;
+
+    } else if (statusCode === 403) {
+      /* 🚫 FORBIDDEN */
+      badge.className = 'status-badge show err';
+      badge.textContent = '403 Forbidden';
+
+      const role = localStorage.getItem('role') || 'USER';
+      bodyEl.innerHTML =
+        `<span style="color:var(--danger)">✕ 403 Forbidden — Access Denied</span>\n\n` +
+        `<span style="color:var(--text-secondary)">Your role (<span style="color:var(--warning)">${role}</span>) ` +
+        `does not have permission to access:\n  ${endpoint}\n\n` +
+        `Only ADMIN role can access this resource.</span>`;
+
+    } else {
+      /* Other status codes */
+      badge.className = 'status-badge show warn';
+      badge.textContent = statusCode + ' ' + getStatusText(statusCode);
+
+      const formatted = typeof body === 'object'
+        ? syntaxHighlight(JSON.stringify(body, null, 2))
+        : escapeHtml(String(body));
+
+      bodyEl.innerHTML = `<span style="color:var(--warning)">⚠ HTTP ${statusCode}</span>\n\n${formatted}`;
+    }
+  }
+
+  /* ─── NETWORK ERROR ─────────────────────────────────────*/
+  function displayNetworkError(endpoint, err) {
+    const badge = document.getElementById('status-badge');
+    const bodyEl = document.getElementById('response-body');
+
+    badge.classList.add('show');
+    badge.className = 'status-badge show warn';
+    badge.textContent = 'Network Error';
+
+    bodyEl.innerHTML =
+      `<span style="color:var(--warning)">⚠ Network Error — Could not connect to backend</span>\n\n` +
+      `<span style="color:var(--text-secondary)">Possible reasons:\n` +
+      `  • Spring Boot is not running at ${BASE_URL}\n` +
+      `  • CORS is not configured on the backend\n` +
+      `  • Firewall / proxy blocking the request\n\n` +
+      `Error: ${escapeHtml(err.message)}</span>`;
+  }
+
+  /* ─── RESET RESPONSE VIEWER ─────────────────────────────*/
+  function resetResponseViewer() {
+    const badge = document.getElementById('status-badge');
+    badge.className = 'status-badge';
+    document.getElementById('response-body').innerHTML =
+      `<span class="placeholder-text">◌ Waiting for response…</span>`;
+  }
+
+  /* ─── SYNTAX HIGHLIGHT JSON ─────────────────────────────
+     Colorizes JSON keys, strings, numbers, booleans.
+  ─────────────────────────────────────────────────────── */
+  function syntaxHighlight(json) {
+    json = escapeHtml(json);
+    return json.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      match => {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? 'json-key' : 'json-string';
+        } else if (/true|false/.test(match)) {
+          cls = 'json-bool';
+        }
+        return `<span class="${cls}">${match}</span>`;
+      }
+    );
+  }
+
+  /* ─── UTILS ─────────────────────────────────────────────*/
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function showAlert(id, visible) {
+    document.getElementById(id).classList.toggle('show', visible);
+  }
+
+  function showLoginError(msg) {
+    document.getElementById('login-error-msg').textContent = msg;
+    showAlert('login-error', true);
+  }
+
+  function getStatusText(code) {
+    const map = { 400:'Bad Request', 404:'Not Found', 500:'Server Error', 503:'Unavailable' };
+    return map[code] || '';
+  }
+
+  /* ─── AUTO-RESTORE SESSION ──────────────────────────────
+     If user already logged in (localStorage has credentials),
+     skip the login screen and go straight to dashboard.
+  ─────────────────────────────────────────────────────── */
+  (function checkExistingSession() {
+    const username = localStorage.getItem('username');
+    const hasCreds = localStorage.getItem('basicCreds') || localStorage.getItem('jwtToken');
+    if (username && hasCreds) {
+      goToDashboard();
+    }
+  })();
+
+  /* ─── KEYBOARD SHORTCUT: Enter to login ─────────────────*/
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && document.getElementById('login-page').classList.contains('active')) {
+      handleLogin();
+    }
+  });
+</script>
+
+</body>
+</html>
