@@ -1,5 +1,7 @@
 # 🔐 RBAC System using Spring Boot
 
+Note: Project code is available in the 'master' branch.
+
 ## 📌 Overview
 
 This project implements a **Role-Based Access Control (RBAC)** system using **Spring Boot**.
